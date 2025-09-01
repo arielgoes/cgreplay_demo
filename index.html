@@ -586,7 +586,17 @@ const USER_SEED = hashStringToSeed(userId);
         }
         
         function createVideoPairs() {
-            // Create all possible unique pairs (A != B, unordered)
+            // COMBINATION GENERATION (not permutations):
+            // This function generates all possible unique video combinations where each pair (A,B) 
+            // appears exactly once. We use combinations rather than permutations because:
+            // 1. Eliminates redundancy - no need for both (VideoX, VideoY) and (VideoY, VideoX)
+            // 2. Reduces cognitive load on users by avoiding duplicate comparisons
+            // 3. Maximizes coverage of unique video relationships within limited evaluation time
+            // 4. Ensures scientific rigor by preventing bias from repeated pair presentations
+            //
+            // The nested loop with j = i + 1 ensures we only generate combinations:
+            // For videos [A, B, C], we get: (A,B), (A,C), (B,C) - exactly C(n,2) = n*(n-1)/2 pairs
+            
             const allPairs = [];
             for (let i = 0; i < videoFilesCache.length; i++) {
                 for (let j = i + 1; j < videoFilesCache.length; j++) {

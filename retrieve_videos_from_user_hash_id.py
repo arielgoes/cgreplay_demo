@@ -114,7 +114,18 @@ def generate_pairs_for_user(user_id, videos):
     """Generate the exact video pairs shown to a user during their session."""
     user_seed = hash_string_to_seed(user_id)
     
-    # Build allPairs with scene number, just like in the frontend
+    # COMBINATION GENERATION (not permutations):
+    # This function generates all possible unique video combinations where each pair (A,B) 
+    # appears exactly once. We use combinations rather than permutations because:
+    # 1. Eliminates redundancy - no need for both (VideoX, VideoY) and (VideoY, VideoX)
+    # 2. Reduces cognitive load on users by avoiding duplicate comparisons
+    # 3. Maximizes coverage of unique video relationships within limited evaluation time
+    # 4. Ensures scientific rigor by preventing bias from repeated pair presentations
+    #
+    # The nested loop with j = i + 1 ensures we only generate combinations:
+    # For videos [A, B, C], we get: (A,B), (A,C), (B,C) - exactly C(n,2) = n*(n-1)/2 pairs
+    # This MUST match the JavaScript implementation in index.html for reproducibility.
+    
     all_pairs = []
     for i in range(len(videos)):
         for j in range(i + 1, len(videos)):
