@@ -151,9 +151,19 @@ Edit the HTML form in `index.html` to add, remove, or modify the evaluation ques
 - Uses a custom implementation of a seeded random number generator for reproducibility
 - Designed for academic and research use in video quality assessment studies
 
-## Data Analysis
+## Data Analysis Pipeline
 
-The project includes tools for analyzing the subjective Quality of Experience (QoE) assessment data collected in the Google Sheet.
+After users complete video evaluations through the web interface, their responses are automatically collected in a Google Sheet. The project includes a comprehensive analysis pipeline to process this data and generate insights.
+
+### Pipeline Overview
+
+The complete data analysis pipeline consists of:
+
+1. **Data Collection** → Users submit evaluations via web interface → Data stored in Google Sheet
+2. **Data Download** → `download_qoe_data.py` retrieves data from Google Sheet as CSV
+3. **Data Analysis** → `analyze_qoe_data.py` processes responses and calculates accuracy metrics
+4. **Visualization Generation** → Creates 4 types of charts showing user performance patterns
+5. **Results Interpretation** → Generated visualizations reveal insights about synthetic video detection
 
 ### Prerequisites
 
@@ -183,60 +193,83 @@ The easiest way to run the analysis is to use the provided shell script:
 ./run_analysis.sh
 ```
 
-This script will:
+This automated pipeline will:
 1. Check for required dependencies and install them if needed
-2. Download the data from the Google Sheet
-3. Analyze the data and generate visualizations
+2. Download the data from the Google Sheet using `download_qoe_data.py`
+3. Analyze the data and generate visualizations using `analyze_qoe_data.py`
 4. Display a summary of the generated visualizations
 
 #### Option 2: Run Steps Individually
 
 If you prefer to run the steps individually:
 
-1. Download the data:
+1. **Download the data**:
    ```bash
-   python download_qoe_data.py
+   python3 download_qoe_data.py
    ```
+   - Downloads data from Google Sheet as `qoe_data.csv`
+   - Uses direct CSV export URL for reliable data retrieval
 
-2. Analyze the data:
+2. **Analyze the data**:
    ```bash
-   python analyze_qoe_data.py --csv qoe_data.csv
+   python3 analyze_qoe_data.py --csv qoe_data.csv
    ```
+   - Processes user responses and calculates accuracy metrics
+   - Generates visualizations in `visualizations/` directory
 
-#### Alternative: Using Sample Data
+#### Option 3: Using Sample Data
 
 If you want to test the analysis without accessing the Google Sheet, you can generate sample data:
 
 ```bash
-python generate_sample_data.py
-python analyze_qoe_data.py --csv sample_qoe_data.csv
+python3 generate_sample_data.py
+python3 analyze_qoe_data.py --csv sample_qoe_data.csv
 ```
 
-### Visualizations
+### Generated Visualizations
 
-The analysis generates the following visualizations in the `visualizations` directory:
+The analysis generates the following visualizations in the `visualizations/` directory:
 
-1. **Overall Accuracy**: Bar chart showing the proportion of correct vs. incorrect guesses
-2. **Accuracy by Video Type**: Bar chart showing the accuracy for different video type combinations
-3. **Confusion Matrix**: Heatmap showing the relationship between reality and user guesses
-4. **User Accuracy Distribution**: Histogram showing the distribution of accuracy across users
+1. **`overall_accuracy.png`**: Bar chart showing the proportion of correct vs. incorrect synthetic video identifications
+2. **`accuracy_by_type.png`**: Bar chart showing accuracy for different video type combinations (real vs real, synthetic vs synthetic, etc.)
+3. **`confusion_matrix.png`**: Heatmap showing the relationship between actual video reality and user guesses
+4. **`user_accuracy_distribution.png`**: Histogram showing how accuracy varies across different users
 
 ### How the Analysis Works
 
-The analysis script:
+The analysis pipeline processes user responses through these steps:
 
-1. Classifies videos as synthetic or real based on their filenames:
-   - Videos with "interpolated" in the name are considered synthetic
-   - Videos with "original" in the name are considered real
-   - Videos with "degrad" in the name are considered synthetic
-   - Other videos default to real
+1. **Video Classification**: Automatically classifies videos as synthetic or real based on filenames:
+   - Videos with "interpolated" → synthetic
+   - Videos with "original" → real
+   - Videos with "degrad" → synthetic
+   - Other videos → default to real
 
-2. Determines the "reality" for each video pair and compares it with the user's guess
+2. **Reality Determination**: For each video pair, determines the ground truth:
+   - Both real → "Both are Real"
+   - Both synthetic → "None are Real"
+   - One real, one synthetic → "Video X is Real"
 
-3. Calculates various metrics including:
+3. **Accuracy Calculation**: Compares user guesses against ground truth to calculate:
    - Overall accuracy (proportion of correct identifications)
-   - Accuracy by video type (how well users identify different combinations of real/synthetic videos)
-   - User accuracy distribution (histogram showing how accuracy varies across users)
-   - Confusion matrix (relationship between actual reality and user guesses)
+   - Accuracy by video type combinations
+   - Per-user accuracy distribution
+   - Confusion matrix patterns
 
-4. Generates visualizations to help interpret the results and identify patterns in user perception
+4. **Insight Generation**: Creates visualizations to reveal patterns in:
+   - Which video types are hardest to identify
+   - User performance variations
+   - Common misidentification patterns
+
+### Individual User Analysis
+
+To analyze specific user performance, use the retrieval script:
+
+```bash
+python3 retrieve_videos_from_user_hash_id.py USER_ID --csv --save user_pairs.csv
+```
+
+This allows researchers to:
+- See exactly which video pairs a user evaluated
+- Reproduce their evaluation session
+- Analyze individual performance patterns

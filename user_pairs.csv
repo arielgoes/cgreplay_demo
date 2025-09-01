@@ -1,3 +1,6 @@
 Scene,VideoA,VideoB
-Pair 27,videos/video_with_degrad_mk11_1080p.mp4,videos/original_video_1280_720.mp4
-Pair 6,videos/original_video_upsampled_from_1280_720_to_1920_1080.mp4,videos/TEMP_TEST.mp4
+Pair 9,videos/interpolated_rife_1280_720_30fps.mp4,videos/interpolated_video_film.mp4
+Pair 22,videos/interpolated_video_film.mp4,videos/video_with_degrad_mk11_1080p.mp4
+Pair 11,videos/interpolated_rife_1280_720_30fps.mp4,videos/original_video_1280_720.mp4
+Pair 10,videos/interpolated_rife_1280_720_30fps.mp4,videos/original_video.mp4
+Pair 16,videos/interpolated_video_addWeighted.mp4,videos/original_video_1280_720.mp4
