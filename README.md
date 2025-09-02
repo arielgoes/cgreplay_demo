@@ -24,16 +24,9 @@ The project also includes tools for analyzing the collected data, extracting ins
 
 The Qoe Evaluation website is a web-based tool for conducting video quality evaluation studies, specifically designed for comparing different video processing techniques.
 
+* **Website:** https://cgreplay-demo.onrender.com/
 
-Website:
-```
-https://cgreplay-demo.onrender.com/
-```
-
-Backup website (Static without dashboard):
-```
-https://arielgoes.github.io/cgreplay_demo/
-```
+* **Backup website (Static without dashboard):** https://arielgoes.github.io/cgreplay_demo/
 
 ## Project Structure
 
