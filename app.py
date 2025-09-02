@@ -509,4 +509,4 @@ if __name__ == '__main__':
     print(f"\nServer will be available on port: {port}")
     print("Statistics dashboard: /stats")
     
-    app.run()
+    app.run(debug=debug_mode, host='0.0.0.0', port=port)
