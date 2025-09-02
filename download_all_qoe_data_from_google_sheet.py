@@ -15,7 +15,7 @@ from io import StringIO
 
 # Constants
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1wkFZdvLvl3PAcP27EmAKaS_LQTvD1_lsRDko-4I3-LY/export?format=csv&gid=625363607"
-OUTPUT_FILE = "qoe_data.csv"
+OUTPUT_FILE = "all_qoe_data_from_google_sheet.csv"
 
 def download_sheet_as_csv(url, output_file):
     """
@@ -75,12 +75,12 @@ def main():
     
     if success:
         print("\nNext steps:")
-        print(f"1. Run the analysis script: python analyze_qoe_data.py --csv {args.output}")
+        print(f"1. Run the analysis script: python analyze_all_qoe_data_from_google_sheet.py --csv {args.output}")
         print("2. Check the 'visualizations' directory for the generated graphs")
     else:
         print("\nDownload failed. Please try again or manually download the data from:")
         print("https://docs.google.com/spreadsheets/d/1wkFZdvLvl3PAcP27EmAKaS_LQTvD1_lsRDko-4I3-LY/edit?gid=625363607")
-        print("Save it as a CSV file and then run: python analyze_qoe_data.py --csv your_file.csv")
+        print("Save it as a CSV file and then run: python analyze_all_qoe_data_from_google_sheet.py --csv your_file.csv")
 
 if __name__ == "__main__":
     main()

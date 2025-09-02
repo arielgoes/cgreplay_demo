@@ -38,15 +38,6 @@ def is_synthetic(filename):
     if "interpolated" in filename.lower():
         return True
     
-    # Videos with "original" in the name are real
-    if "original" in filename.lower():
-        return False
-    
-    # For other videos, we need to make a determination
-    # For now, assume videos with "degrad" are synthetic, others are real
-    if "degrad" in filename.lower():
-        return True
-    
     # Default to real if we can't determine
     return False
 

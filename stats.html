@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Quality Evaluation - Statistics Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --text-color: #ffffff;
+            --primary-color: #bb86fc;
+            --secondary-color: #03dac6;
+            --surface-color: #1e1e1e;
+            --border-color: #333333;
+            --hover-color: #2a2a2a;
+            --success-color: #4caf50;
+            --warning-color: #ff9800;
+            --error-color: #f44336;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px;
+            background-color: var(--surface-color);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.8;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            background-color: var(--surface-color);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border-color);
+        }
+
+        .stat-card h3 {
+            color: var(--primary-color);
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: var(--secondary-color);
+            margin-bottom: 10px;
+        }
+
+        .stat-label {
+            opacity: 0.8;
+            font-size: 0.9em;
+        }
+
+        .chart-container {
+            background-color: var(--surface-color);
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border-color);
+        }
+
+        .chart-container h3 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 1.4em;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 400px;
+            margin-bottom: 20px;
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            font-size: 1.2em;
+            color: var(--primary-color);
+        }
+
+        .loading-spinner {
+            border: 4px solid var(--surface-color);
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-right: 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background-color: var(--error-color);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .refresh-btn {
+            background-color: var(--primary-color);
+            color: var(--bg-color);
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            margin: 10px;
+        }
+
+        .refresh-btn:hover {
+            background-color: var(--secondary-color);
+            transform: translateY(-2px);
+        }
+
+        .back-btn {
+            background-color: var(--border-color);
+            color: var(--text-color);
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            margin: 10px;
+        }
+
+        .back-btn:hover {
+            background-color: var(--hover-color);
+            transform: translateY(-2px);
+        }
+
+        .controls {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .insight-box {
+            background-color: var(--hover-color);
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border-left: 4px solid var(--secondary-color);
+        }
+
+        .insight-box h4 {
+            color: var(--secondary-color);
+            margin-bottom: 10px;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .metric-item {
+            background-color: var(--hover-color);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .metric-item .value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .metric-item .label {
+            font-size: 0.9em;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .chart-wrapper {
+                height: 300px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Statistics Dashboard</h1>
+            <p>Real-time analysis of video quality evaluation results</p>
+            <div class="controls">
+                <button class="back-btn" onclick="goBack()">← Back to Evaluation</button>
+                <button class="refresh-btn" onclick="refreshData()">🔄 Refresh Data</button>
+                <button class="refresh-btn" onclick="window.open('/upload', '_blank')" style="background-color: var(--secondary-color);">📁 Upload CSV Data</button>
+            </div>
+            
+            <!-- User-specific statistics input -->
+            <div style="margin-top: 20px; text-align: center;">
+                <div style="display: inline-block; background-color: var(--surface-color); padding: 15px; border-radius: 8px; border: 1px solid var(--border-color);">
+                    <label for="userIdInput" style="margin-right: 10px;">👤 View Your Personal Stats:</label>
+                    <input type="text" id="userIdInput" placeholder="Enter your participant ID (e.g., pUGPkIrUVG)" 
+                           style="padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); background-color: var(--hover-color); color: var(--text-color); width: 200px;">
+                    <button onclick="loadUserStats()" style="margin-left: 10px; padding: 8px 16px;">View My Stats</button>
+                    <button onclick="clearUserFilter()" style="margin-left: 5px; padding: 8px 16px; background-color: var(--border-color);">Show All</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="loading-spinner"></div>
+            Loading statistics...
+        </div>
+
+        <div id="error" class="error" style="display: none;">
+            <h3>Error Loading Data</h3>
+            <p id="error-message"></p>
+            <button class="refresh-btn" onclick="refreshData()">Try Again</button>
+        </div>
+
+        <div id="content" style="display: none;">
+            <!-- Overview Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Total Evaluations</h3>
+                    <div class="stat-value" id="total-evaluations">-</div>
+                    <div class="stat-label">Video pairs evaluated</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Unique Participants</h3>
+                    <div class="stat-value" id="unique-users">-</div>
+                    <div class="stat-label">Individual evaluators</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Overall Accuracy</h3>
+                    <div class="stat-value" id="overall-accuracy">-</div>
+                    <div class="stat-label">Correct identifications</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Data Freshness</h3>
+                    <div class="stat-value" id="last-updated">-</div>
+                    <div class="stat-label">Last updated</div>
+                </div>
+            </div>
+
+            <!-- Accuracy by Video Type Chart -->
+            <div class="chart-container">
+                <h3>Accuracy by Video Scenario</h3>
+                <div class="chart-wrapper">
+                    <canvas id="accuracyChart"></canvas>
+                </div>
+                <div class="insight-box">
+                    <h4>💡 Insights</h4>
+                    <p id="accuracy-insights">Loading insights...</p>
+                </div>
+            </div>
+
+            <!-- Confusion Matrix -->
+            <div class="chart-container">
+                <h3>Confusion Matrix: Actual vs. Perceived Reality</h3>
+                <div class="chart-wrapper">
+                    <canvas id="confusionChart"></canvas>
+                </div>
+                <div class="insight-box">
+                    <h4>🎯 Analysis</h4>
+                    <p id="confusion-insights">Loading analysis...</p>
+                </div>
+            </div>
+
+            <!-- User Performance Distribution -->
+            <div class="chart-container">
+                <h3>User Performance Distribution</h3>
+                <div class="chart-wrapper">
+                    <canvas id="userDistributionChart"></canvas>
+                </div>
+                <div class="metric-grid">
+                    <div class="metric-item">
+                        <div class="value" id="mean-accuracy">-</div>
+                        <div class="label">Mean Accuracy</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="value" id="std-accuracy">-</div>
+                        <div class="label">Standard Deviation</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="value" id="best-user">-</div>
+                        <div class="label">Best Performance</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="value" id="responses-per-user">-</div>
+                        <div class="label">Avg. Responses/User</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let charts = {};
+        
+        // Configuration for Chart.js dark theme
+        Chart.defaults.color = '#ffffff';
+        Chart.defaults.borderColor = '#333333';
+        Chart.defaults.backgroundColor = 'rgba(187, 134, 252, 0.1)';
+
+        async function loadStatistics(forceRefresh = false) {
+            try {
+                showLoading();
+                
+                // Add refresh parameter if needed
+                const refreshParam = forceRefresh ? '?refresh=true' : '';
+                
+                // Fetch all data in parallel with better error handling
+                const [overviewResponse, confusionResponse, userAccuracyResponse] = await Promise.all([
+                    fetch(`/api/stats/overview${refreshParam}`),
+                    fetch(`/api/stats/confusion_matrix${refreshParam}`),
+                    fetch(`/api/stats/user_accuracy${refreshParam}`)
+                ]);
+
+                // Check if responses are OK
+                if (!overviewResponse.ok) {
+                    throw new Error(`Server error: ${overviewResponse.status} ${overviewResponse.statusText}`);
+                }
+
+                // Parse JSON with error handling
+                let overview, confusionMatrix, userAccuracy;
+                
+                try {
+                    overview = await overviewResponse.json();
+                    confusionMatrix = await confusionResponse.json();
+                    userAccuracy = await userAccuracyResponse.json();
+                } catch (parseError) {
+                    throw new Error('Server returned invalid data. Please check if the Flask server is running correctly.');
+                }
+
+                if (overview.error) throw new Error(overview.error);
+                
+                updateOverviewStats(overview);
+                createAccuracyChart(overview.accuracy_by_type);
+                createConfusionMatrix(confusionMatrix);
+                createUserDistributionChart(userAccuracy);
+                
+                hideLoading();
+                showContent();
+                
+            } catch (error) {
+                console.error('Error loading statistics:', error);
+                let errorMessage = error.message;
+                
+                // Provide more helpful error messages
+                if (error.message.includes('Failed to fetch')) {
+                    errorMessage = 'Cannot connect to the server. Please make sure the Flask server is running on port 5000.';
+                } else if (error.message.includes('Unexpected token')) {
+                    errorMessage = 'Server returned HTML instead of data. Please check the Flask server logs for errors.';
+                }
+                
+                showError(errorMessage);
+            }
+        }
+
+        function updateOverviewStats(data) {
+            document.getElementById('total-evaluations').textContent = data.total_evaluations;
+            document.getElementById('unique-users').textContent = data.unique_users;
+            document.getElementById('overall-accuracy').textContent = (data.overall_accuracy * 100).toFixed(1) + '%';
+            document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+        }
+
+        function createAccuracyChart(accuracyData) {
+            const ctx = document.getElementById('accuracyChart').getContext('2d');
+            
+            if (charts.accuracy) {
+                charts.accuracy.destroy();
+            }
+            
+            const labels = Object.keys(accuracyData);
+            const values = Object.values(accuracyData).map(v => v * 100);
+            
+            charts.accuracy = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Accuracy (%)',
+                        data: values,
+                        backgroundColor: 'rgba(187, 134, 252, 0.8)',
+                        borderColor: 'rgba(187, 134, 252, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Generate insights
+            const maxAccuracy = Math.max(...values);
+            const minAccuracy = Math.min(...values);
+            const bestScenario = labels[values.indexOf(maxAccuracy)];
+            const worstScenario = labels[values.indexOf(minAccuracy)];
+            
+            document.getElementById('accuracy-insights').innerHTML = 
+                `Users perform best on <strong>${bestScenario}</strong> scenarios (${maxAccuracy.toFixed(1)}% accuracy) ` +
+                `and struggle most with <strong>${worstScenario}</strong> scenarios (${minAccuracy.toFixed(1)}% accuracy).`;
+        }
+
+        function createConfusionMatrix(data) {
+            const ctx = document.getElementById('confusionChart').getContext('2d');
+            
+            if (charts.confusion) {
+                charts.confusion.destroy();
+            }
+            
+            // Create a heatmap-style chart using Chart.js
+            const matrix = data.matrix;
+            const labels = data.labels;
+            
+            // Flatten matrix data for scatter plot
+            const scatterData = [];
+            for (let i = 0; i < matrix.length; i++) {
+                for (let j = 0; j < matrix[i].length; j++) {
+                    scatterData.push({
+                        x: j,
+                        y: i,
+                        v: matrix[i][j]
+                    });
+                }
+            }
+            
+            charts.confusion = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Confusion Matrix',
+                        data: scatterData,
+                        backgroundColor: function(context) {
+                            const value = context.parsed.v || 0;
+                            const alpha = value;
+                            return `rgba(3, 218, 198, ${alpha})`;
+                        },
+                        pointRadius: function(context) {
+                            const value = context.parsed.v || 0;
+                            return Math.max(5, value * 30);
+                        }
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: function(context) {
+                                    const point = context[0];
+                                    return `Actual: ${labels[point.parsed.y]} → Guessed: ${labels[point.parsed.x]}`;
+                                },
+                                label: function(context) {
+                                    return `Proportion: ${(context.parsed.v * 100).toFixed(1)}%`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            position: 'bottom',
+                            min: -0.5,
+                            max: labels.length - 0.5,
+                            ticks: {
+                                stepSize: 1,
+                                callback: function(value) {
+                                    return labels[value] || '';
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'User Guess'
+                            }
+                        },
+                        y: {
+                            min: -0.5,
+                            max: labels.length - 0.5,
+                            ticks: {
+                                stepSize: 1,
+                                callback: function(value) {
+                                    return labels[value] || '';
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'Actual Reality'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Generate confusion matrix insights
+            let maxConfusion = 0;
+            let maxConfusionPair = '';
+            for (let i = 0; i < matrix.length; i++) {
+                for (let j = 0; j < matrix[i].length; j++) {
+                    if (i !== j && matrix[i][j] > maxConfusion) {
+                        maxConfusion = matrix[i][j];
+                        maxConfusionPair = `${labels[i]} → ${labels[j]}`;
+                    }
+                }
+            }
+            
+            document.getElementById('confusion-insights').innerHTML = 
+                `Most common confusion: Users mistake <strong>${maxConfusionPair}</strong> ` +
+                `in ${(maxConfusion * 100).toFixed(1)}% of cases.`;
+        }
+
+        function createUserDistributionChart(data) {
+            const ctx = document.getElementById('userDistributionChart').getContext('2d');
+            
+            if (charts.userDist) {
+                charts.userDist.destroy();
+            }
+            
+            // Create histogram bins
+            const accuracies = data.user_accuracies;
+            const bins = 10;
+            const binSize = 1 / bins;
+            const histogram = new Array(bins).fill(0);
+            
+            accuracies.forEach(acc => {
+                const binIndex = Math.min(Math.floor(acc / binSize), bins - 1);
+                histogram[binIndex]++;
+            });
+            
+            const binLabels = [];
+            for (let i = 0; i < bins; i++) {
+                const start = (i * binSize * 100).toFixed(0);
+                const end = ((i + 1) * binSize * 100).toFixed(0);
+                binLabels.push(`${start}-${end}%`);
+            }
+            
+            charts.userDist = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: binLabels,
+                    datasets: [{
+                        label: 'Number of Users',
+                        data: histogram,
+                        backgroundColor: 'rgba(3, 218, 198, 0.8)',
+                        borderColor: 'rgba(3, 218, 198, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Update metrics
+            document.getElementById('mean-accuracy').textContent = (data.mean_accuracy * 100).toFixed(1) + '%';
+            document.getElementById('std-accuracy').textContent = (data.std_accuracy * 100).toFixed(1) + '%';
+            document.getElementById('best-user').textContent = (Math.max(...accuracies) * 100).toFixed(1) + '%';
+            
+            const avgResponses = accuracies.length > 0 ? (accuracies.length / new Set(accuracies).size).toFixed(1) : '0';
+            document.getElementById('responses-per-user').textContent = avgResponses;
+        }
+
+        function showLoading() {
+            document.getElementById('loading').style.display = 'flex';
+            document.getElementById('content').style.display = 'none';
+            document.getElementById('error').style.display = 'none';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        function showContent() {
+            document.getElementById('content').style.display = 'block';
+        }
+
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error-message').textContent = message;
+        }
+
+        function refreshData() {
+            loadStatistics(true);
+        }
+
+        function goBack() {
+            window.location.href = '/';
+        }
+
+        // User-specific statistics functions
+        let currentUserId = null;
+        
+        async function loadUserStats() {
+            const userId = document.getElementById('userIdInput').value.trim();
+            if (!userId) {
+                alert('Please enter a participant ID');
+                return;
+            }
+            
+            try {
+                showLoading();
+                currentUserId = userId;
+                
+                const response = await fetch(`/api/stats/user/${userId}`);
+                const userData = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(userData.error || 'Failed to load user data');
+                }
+                
+                displayUserStats(userData);
+                hideLoading();
+                showContent();
+                
+            } catch (error) {
+                console.error('Error loading user statistics:', error);
+                showError(`Error loading stats for user ${userId}: ${error.message}`);
+            }
+        }
+        
+        function clearUserFilter() {
+            currentUserId = null;
+            document.getElementById('userIdInput').value = '';
+            loadStatistics();
+        }
+        
+        function displayUserStats(userData) {
+            // Update header to show user-specific view
+            document.querySelector('.header h1').textContent = `📊 Statistics for ${userData.user_id}`;
+            document.querySelector('.header p').textContent = `Personal evaluation results and performance analysis`;
+            
+            // Update overview stats with user-specific data
+            document.getElementById('total-evaluations').textContent = userData.total_evaluations;
+            document.getElementById('unique-users').textContent = '1 (You)';
+            document.getElementById('overall-accuracy').textContent = (userData.user_accuracy * 100).toFixed(1) + '%';
+            document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+            
+            // Add user performance comparison
+            const performanceText = userData.performance_vs_average >= 0 ? 
+                `+${(userData.performance_vs_average * 100).toFixed(1)}% above average` :
+                `${(userData.performance_vs_average * 100).toFixed(1)}% below average`;
+            
+            // Create user-specific accuracy chart
+            createAccuracyChart(userData.accuracy_by_type, true);
+            
+            // Create user evaluation details table
+            createUserEvaluationTable(userData.evaluations);
+            
+            // Update insights for user-specific view
+            const bestScenarios = Object.entries(userData.accuracy_by_type)
+                .sort(([,a], [,b]) => b - a);
+            
+            if (bestScenarios.length > 0) {
+                const [bestScenario, bestAccuracy] = bestScenarios[0];
+                const [worstScenario, worstAccuracy] = bestScenarios[bestScenarios.length - 1];
+                
+                document.getElementById('accuracy-insights').innerHTML = 
+                    `Your performance: <strong>${(userData.user_accuracy * 100).toFixed(1)}% accuracy</strong> ` +
+                    `(${performanceText}). ` +
+                    `You perform best on <strong>${bestScenario}</strong> scenarios ` +
+                    `and struggle most with <strong>${worstScenario}</strong> scenarios. ` +
+                    `Rank: <strong>#${userData.rank} of ${userData.total_users}</strong> participants.`;
+            }
+            
+            // Hide confusion matrix and user distribution for individual view
+            document.querySelectorAll('.chart-container')[1].style.display = 'none';
+            document.querySelectorAll('.chart-container')[2].style.display = 'none';
+        }
+        
+        function createUserEvaluationTable(evaluations) {
+            // Find or create evaluation details container
+            let detailsContainer = document.getElementById('user-evaluations');
+            if (!detailsContainer) {
+                detailsContainer = document.createElement('div');
+                detailsContainer.id = 'user-evaluations';
+                detailsContainer.className = 'chart-container';
+                document.getElementById('content').appendChild(detailsContainer);
+            }
+            
+            detailsContainer.innerHTML = `
+                <h3>Your Evaluation Details</h3>
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+                        <thead>
+                            <tr style="background-color: var(--hover-color);">
+                                <th style="padding: 12px; border: 1px solid var(--border-color);">Scene</th>
+                                <th style="padding: 12px; border: 1px solid var(--border-color);">Video A</th>
+                                <th style="padding: 12px; border: 1px solid var(--border-color);">Video B</th>
+                                <th style="padding: 12px; border: 1px solid var(--border-color);">Reality</th>
+                                <th style="padding: 12px; border: 1px solid var(--border-color);">Your Guess</th>
+                                <th style="padding: 12px; border: 1px solid var(--border-color);">Result</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${evaluations.map(eval => `
+                                <tr>
+                                    <td style="padding: 8px; border: 1px solid var(--border-color);">${eval.scene}</td>
+                                    <td style="padding: 8px; border: 1px solid var(--border-color); font-size: 0.9em;">${eval.video_a.split('/').pop()}</td>
+                                    <td style="padding: 8px; border: 1px solid var(--border-color); font-size: 0.9em;">${eval.video_b.split('/').pop()}</td>
+                                    <td style="padding: 8px; border: 1px solid var(--border-color);">${eval.reality}</td>
+                                    <td style="padding: 8px; border: 1px solid var(--border-color);">${eval.user_guess}</td>
+                                    <td style="padding: 8px; border: 1px solid var(--border-color); color: ${eval.correct ? 'var(--success-color)' : 'var(--error-color)'};">
+                                        ${eval.correct ? '✓ Correct' : '✗ Incorrect'}
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        
+        function createAccuracyChart(accuracyData, isUserSpecific = false) {
+            const ctx = document.getElementById('accuracyChart').getContext('2d');
+            
+            if (charts.accuracy) {
+                charts.accuracy.destroy();
+            }
+            
+            const labels = Object.keys(accuracyData);
+            const values = Object.values(accuracyData).map(v => v * 100);
+            
+            const title = isUserSpecific ? 'Your Accuracy by Video Scenario' : 'Accuracy by Video Scenario';
+            
+            charts.accuracy = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Accuracy (%)',
+                        data: values,
+                        backgroundColor: isUserSpecific ? 'rgba(3, 218, 198, 0.8)' : 'rgba(187, 134, 252, 0.8)',
+                        borderColor: isUserSpecific ? 'rgba(3, 218, 198, 1)' : 'rgba(187, 134, 252, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: title
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Load statistics when page loads
+        document.addEventListener('DOMContentLoaded', loadStatistics);
+    </script>
+</body>
+</html>
