@@ -1,0 +1,16 @@
+{
+  "version": "1.0.1756743248",
+  "generated_at": "2025-09-01T16:14:08.395006+00:00",
+  "hash": "dc83953e0e65e343",
+  "files": [
+    "videos/4Mbit_Loss0_Fortnite.mp4",
+    "videos/4Mbit_Loss0_Forza.mp4",
+    "videos/4Mbit_Loss0_Kombat.mp4",
+    "videos/4Mbit_Loss1_Fortnite.mp4",
+    "videos/4Mbit_Loss1_Forza.mp4",
+    "videos/4Mbit_Loss1_Kombat.mp4",
+    "videos/reference_video_Fortnite_1600x900.mp4",
+    "videos/reference_video_Forza_1600x900.mp4",
+    "videos/reference_video_Kombat_1600x900.mp4"
+  ]
+}
