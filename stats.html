@@ -311,18 +311,6 @@
                 </div>
             </div>
 
-            <!-- Confusion Matrix -->
-            <div class="chart-container">
-                <h3>Confusion Matrix: Actual vs. Perceived Reality</h3>
-                <div class="chart-wrapper">
-                    <canvas id="confusionChart"></canvas>
-                </div>
-                <div class="insight-box">
-                    <h4>🎯 Analysis</h4>
-                    <p id="confusion-insights">Loading analysis...</p>
-                </div>
-            </div>
-
             <!-- User Performance Distribution -->
             <div class="chart-container">
                 <h3>User Performance Distribution</h3>
@@ -367,33 +355,40 @@
                 const refreshParam = forceRefresh ? '?refresh=true' : '';
                 
                 // Fetch all data in parallel with better error handling
-                const [overviewResponse, confusionResponse, userAccuracyResponse] = await Promise.all([
+                const [overviewResponse, userAccuracyResponse] = await Promise.all([
                     fetch(`/api/stats/overview${refreshParam}`),
-                    fetch(`/api/stats/confusion_matrix${refreshParam}`),
                     fetch(`/api/stats/user_accuracy${refreshParam}`)
                 ]);
 
                 // Check if responses are OK
                 if (!overviewResponse.ok) {
-                    throw new Error(`Server error: ${overviewResponse.status} ${overviewResponse.statusText}`);
+                    throw new Error(`Overview API error: ${overviewResponse.status} ${overviewResponse.statusText}`);
+                }
+                if (!userAccuracyResponse.ok) {
+                    throw new Error(`User accuracy API error: ${userAccuracyResponse.status} ${userAccuracyResponse.statusText}`);
                 }
 
                 // Parse JSON with error handling
-                let overview, confusionMatrix, userAccuracy;
+                let overview, userAccuracy;
                 
                 try {
                     overview = await overviewResponse.json();
-                    confusionMatrix = await confusionResponse.json();
+                } catch (parseError) {
+                    console.error('Failed to parse overview response:', parseError);
+                    throw new Error('Failed to parse overview data from server.');
+                }
+                
+                try {
                     userAccuracy = await userAccuracyResponse.json();
                 } catch (parseError) {
-                    throw new Error('Server returned invalid data. Please check if the Flask server is running correctly.');
+                    console.error('Failed to parse user accuracy response:', parseError);
+                    throw new Error('Failed to parse user accuracy data from server.');
                 }
 
                 if (overview.error) throw new Error(overview.error);
                 
                 updateOverviewStats(overview);
                 createAccuracyChart(overview.accuracy_by_type);
-                createConfusionMatrix(confusionMatrix);
                 createUserDistributionChart(userAccuracy);
                 
                 hideLoading();
@@ -426,6 +421,47 @@
             
             if (charts.accuracy) {
                 charts.accuracy.destroy();
+            }
+            
+            // Handle empty data case
+            if (!accuracyData || Object.keys(accuracyData).length === 0) {
+                console.log('No accuracy data available, showing empty chart');
+                charts.accuracy = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['No Data'],
+                        datasets: [{
+                            label: 'Accuracy (%)',
+                            data: [0],
+                            backgroundColor: 'rgba(187, 134, 252, 0.3)',
+                            borderColor: 'rgba(187, 134, 252, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                ticks: {
+                                    callback: function(value) {
+                                        return value + '%';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                document.getElementById('accuracy-insights').innerHTML = 'No evaluation data available yet.';
+                return;
             }
             
             const labels = Object.keys(accuracyData);
@@ -482,122 +518,53 @@
                 `and struggle most with <strong>${worstScenario}</strong> scenarios (${minAccuracy.toFixed(1)}% accuracy).`;
         }
 
-        function createConfusionMatrix(data) {
-            const ctx = document.getElementById('confusionChart').getContext('2d');
-            
-            if (charts.confusion) {
-                charts.confusion.destroy();
-            }
-            
-            // Create a heatmap-style chart using Chart.js
-            const matrix = data.matrix;
-            const labels = data.labels;
-            
-            // Flatten matrix data for scatter plot
-            const scatterData = [];
-            for (let i = 0; i < matrix.length; i++) {
-                for (let j = 0; j < matrix[i].length; j++) {
-                    scatterData.push({
-                        x: j,
-                        y: i,
-                        v: matrix[i][j]
-                    });
-                }
-            }
-            
-            charts.confusion = new Chart(ctx, {
-                type: 'scatter',
-                data: {
-                    datasets: [{
-                        label: 'Confusion Matrix',
-                        data: scatterData,
-                        backgroundColor: function(context) {
-                            const value = context.parsed.v || 0;
-                            const alpha = value;
-                            return `rgba(3, 218, 198, ${alpha})`;
-                        },
-                        pointRadius: function(context) {
-                            const value = context.parsed.v || 0;
-                            return Math.max(5, value * 30);
-                        }
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: {
-                            callbacks: {
-                                title: function(context) {
-                                    const point = context[0];
-                                    return `Actual: ${labels[point.parsed.y]} → Guessed: ${labels[point.parsed.x]}`;
-                                },
-                                label: function(context) {
-                                    return `Proportion: ${(context.parsed.v * 100).toFixed(1)}%`;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            type: 'linear',
-                            position: 'bottom',
-                            min: -0.5,
-                            max: labels.length - 0.5,
-                            ticks: {
-                                stepSize: 1,
-                                callback: function(value) {
-                                    return labels[value] || '';
-                                }
-                            },
-                            title: {
-                                display: true,
-                                text: 'User Guess'
-                            }
-                        },
-                        y: {
-                            min: -0.5,
-                            max: labels.length - 0.5,
-                            ticks: {
-                                stepSize: 1,
-                                callback: function(value) {
-                                    return labels[value] || '';
-                                }
-                            },
-                            title: {
-                                display: true,
-                                text: 'Actual Reality'
-                            }
-                        }
-                    }
-                }
-            });
-            
-            // Generate confusion matrix insights
-            let maxConfusion = 0;
-            let maxConfusionPair = '';
-            for (let i = 0; i < matrix.length; i++) {
-                for (let j = 0; j < matrix[i].length; j++) {
-                    if (i !== j && matrix[i][j] > maxConfusion) {
-                        maxConfusion = matrix[i][j];
-                        maxConfusionPair = `${labels[i]} → ${labels[j]}`;
-                    }
-                }
-            }
-            
-            document.getElementById('confusion-insights').innerHTML = 
-                `Most common confusion: Users mistake <strong>${maxConfusionPair}</strong> ` +
-                `in ${(maxConfusion * 100).toFixed(1)}% of cases.`;
-        }
-
         function createUserDistributionChart(data) {
             const ctx = document.getElementById('userDistributionChart').getContext('2d');
             
             if (charts.userDist) {
                 charts.userDist.destroy();
+            }
+            
+            // Handle empty data case
+            if (!data || !data.user_accuracies || data.user_accuracies.length === 0) {
+                console.log('No user accuracy data available, showing empty chart');
+                charts.userDist = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['No Data'],
+                        datasets: [{
+                            label: 'Number of Users',
+                            data: [0],
+                            backgroundColor: 'rgba(3, 218, 198, 0.3)',
+                            borderColor: 'rgba(3, 218, 198, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    stepSize: 1
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                // Update metrics with zero values
+                document.getElementById('mean-accuracy').textContent = '0.0%';
+                document.getElementById('std-accuracy').textContent = '0.0%';
+                document.getElementById('best-user').textContent = '0.0%';
+                document.getElementById('responses-per-user').textContent = '0';
+                return;
             }
             
             // Create histogram bins
@@ -762,8 +729,7 @@
                     `Rank: <strong>#${userData.rank} of ${userData.total_users}</strong> participants.`;
             }
             
-            // Hide confusion matrix and user distribution for individual view
-            document.querySelectorAll('.chart-container')[1].style.display = 'none';
+            // Hide user distribution for individual view
             document.querySelectorAll('.chart-container')[2].style.display = 'none';
         }
         
@@ -817,10 +783,53 @@
                 charts.accuracy.destroy();
             }
             
+            // Handle empty data case
+            if (!accuracyData || Object.keys(accuracyData).length === 0) {
+                console.log('No accuracy data available, showing empty chart');
+                charts.accuracy = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['No Data'],
+                        datasets: [{
+                            label: 'Accuracy (%)',
+                            data: [0],
+                            backgroundColor: isUserSpecific ? 'rgba(3, 218, 198, 0.3)' : 'rgba(187, 134, 252, 0.3)',
+                            borderColor: isUserSpecific ? 'rgba(3, 218, 198, 1)' : 'rgba(187, 134, 252, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            title: {
+                                display: true,
+                                text: isUserSpecific ? 'Your Accuracy by Video Scenario' : 'Accuracy by Video Scenario'
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                ticks: {
+                                    callback: function(value) {
+                                        return value + '%';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                document.getElementById('accuracy-insights').innerHTML = 'No evaluation data available yet.';
+                return;
+            }
+            
             const labels = Object.keys(accuracyData);
             const values = Object.values(accuracyData).map(v => v * 100);
-            
-            const title = isUserSpecific ? 'Your Accuracy by Video Scenario' : 'Accuracy by Video Scenario';
             
             charts.accuracy = new Chart(ctx, {
                 type: 'bar',
@@ -843,7 +852,7 @@
                         },
                         title: {
                             display: true,
-                            text: title
+                            text: isUserSpecific ? 'Your Accuracy by Video Scenario' : 'Accuracy by Video Scenario'
                         }
                     },
                     scales: {
@@ -865,6 +874,16 @@
                     }
                 }
             });
+            
+            // Generate insights
+            const maxAccuracy = Math.max(...values);
+            const minAccuracy = Math.min(...values);
+            const bestScenario = labels[values.indexOf(maxAccuracy)];
+            const worstScenario = labels[values.indexOf(minAccuracy)];
+            
+            document.getElementById('accuracy-insights').innerHTML = 
+                `Users perform best on <strong>${bestScenario}</strong> scenarios (${maxAccuracy.toFixed(1)}% accuracy) ` +
+                `and struggle most with <strong>${worstScenario}</strong> scenarios (${minAccuracy.toFixed(1)}% accuracy).`;
         }
 
         // Load statistics when page loads

@@ -19,8 +19,157 @@ try:
         authenticate_google_sheets, get_data_from_google_sheets, 
         analyze_data, is_synthetic
     )
+    print("Successfully imported analysis functions")
 except ImportError as e:
     print(f"Warning: Could not import analysis functions: {e}")
+    print("Using simplified analysis functions without visualization dependencies")
+    
+    def authenticate_google_sheets():
+        raise Exception("Google Sheets authentication not available")
+    
+    def get_data_from_google_sheets():
+        raise Exception("Google Sheets data fetching not available")
+    
+    def is_synthetic(filename):
+        return "interpolated" in filename.lower()
+    
+    def analyze_data(df):
+        """Simplified analysis function that works without matplotlib/seaborn."""
+        import pandas as pd
+        import numpy as np
+        
+        print(f"DataFrame shape: {df.shape}")
+        print(f"DataFrame columns: {df.columns.tolist()}")
+        
+        # Handle empty dataset case
+        if df.empty or len(df) == 0:
+            print("Dataset is empty, returning zero values")
+            return {
+                'df': pd.DataFrame(),
+                'overall_accuracy': 0.0,
+                'accuracy_by_type': {},
+                'accuracy_by_user': pd.Series(dtype=float),
+                'confusion_matrix': pd.DataFrame()
+            }
+        
+        # Create a working copy
+        df_work = df.copy()
+        
+        # Remove rows with missing critical data
+        df_work = df_work.dropna(subset=['User ID', 'Video A Filename', 'Video B Filename', 'Which Video Real'])
+        
+        # Check again after cleaning
+        if df_work.empty or len(df_work) == 0:
+            print("Dataset is empty after cleaning, returning zero values")
+            return {
+                'df': pd.DataFrame(),
+                'overall_accuracy': 0.0,
+                'accuracy_by_type': {},
+                'accuracy_by_user': pd.Series(dtype=float),
+                'confusion_matrix': pd.DataFrame()
+            }
+        
+        # Map the 'Which Video Real' column to standardized format
+        def map_user_guess(value):
+            if pd.isna(value):
+                return 'Unknown'
+            value_str = str(value).lower().strip()
+            if value_str in ['a', 'video a', 'left']:
+                return 'Video A is Real'
+            elif value_str in ['b', 'video b', 'right']:
+                return 'Video B is Real'
+            elif value_str in ['both', 'both are real', 'neither']:
+                return 'Both are Real'
+            elif value_str in ['none', 'none are real', 'both synthetic']:
+                return 'None are Real'
+            else:
+                return 'Unknown'
+        
+        df_work['User Guess'] = df_work['Which Video Real'].apply(map_user_guess)
+        
+        # Determine if videos are synthetic
+        df_work['Video A Is Synthetic'] = df_work['Video A Filename'].apply(is_synthetic)
+        df_work['Video B Is Synthetic'] = df_work['Video B Filename'].apply(is_synthetic)
+        
+        # Determine the actual reality
+        def determine_reality(row):
+            a_synthetic = row['Video A Is Synthetic']
+            b_synthetic = row['Video B Is Synthetic']
+            
+            if not a_synthetic and not b_synthetic:
+                return 'Both are Real'
+            elif a_synthetic and b_synthetic:
+                return 'None are Real'
+            elif not a_synthetic and b_synthetic:
+                return 'Video A is Real'
+            else:
+                return 'Video B is Real'
+        
+        df_work['Reality'] = df_work.apply(determine_reality, axis=1)
+        
+        # Determine if the user's guess was correct
+        df_work['Correct Guess'] = df_work.apply(
+            lambda row: row['User Guess'] == row['Reality'], axis=1
+        )
+        
+        # Calculate overall accuracy
+        overall_accuracy = df_work['Correct Guess'].mean() if len(df_work) > 0 else 0.0
+        
+        # Calculate accuracy by video type
+        accuracy_by_type = {}
+        for reality in df_work['Reality'].unique():
+            subset = df_work[df_work['Reality'] == reality]
+            if len(subset) > 0:
+                accuracy = subset['Correct Guess'].mean()
+                accuracy_by_type[reality] = accuracy
+        
+        # Calculate accuracy by user
+        accuracy_by_user = df_work.groupby('User ID')['Correct Guess'].mean()
+        
+        # Create simple confusion matrix
+        reality_categories = ['Video A is Real', 'Video B is Real', 'Both are Real', 'None are Real']
+        
+        try:
+            if len(df_work) > 0:
+                confusion_matrix = pd.crosstab(
+                    df_work['Reality'], 
+                    df_work['User Guess'],
+                    normalize='index'
+                )
+                
+                # Ensure all categories are present
+                for category in reality_categories:
+                    if category not in confusion_matrix.index:
+                        confusion_matrix.loc[category] = 0
+                    if category not in confusion_matrix.columns:
+                        confusion_matrix[category] = 0
+                
+                confusion_matrix = confusion_matrix.reindex(reality_categories, axis=0, fill_value=0)
+                confusion_matrix = confusion_matrix.reindex(reality_categories, axis=1, fill_value=0)
+            else:
+                confusion_matrix = pd.DataFrame(
+                    0, 
+                    index=reality_categories, 
+                    columns=reality_categories
+                )
+        except Exception as e:
+            print(f"Warning: Could not create confusion matrix: {e}")
+            confusion_matrix = pd.DataFrame(
+                0, 
+                index=reality_categories, 
+                columns=reality_categories
+            )
+        
+        return {
+            'df': df_work,
+            'overall_accuracy': overall_accuracy,
+            'accuracy_by_type': accuracy_by_type,
+            'accuracy_by_user': accuracy_by_user,
+            'confusion_matrix': confusion_matrix
+        }
+
+except Exception as e:
+    print(f"Error importing analysis functions: {e}")
     # Define fallback functions
     def authenticate_google_sheets():
         raise Exception("Google Sheets authentication not available")
@@ -298,53 +447,65 @@ def stats_overview():
         
         results = get_cached_data(force_refresh=force_refresh)
         
+        # Handle empty dataset case
+        if results is None or results.get('df') is None or len(results.get('df', pd.DataFrame())) == 0:
+            overview = {
+                'total_evaluations': 0,
+                'unique_users': 0,
+                'overall_accuracy': 0.0,
+                'video_type_distribution': {},
+                'accuracy_by_type': {}
+            }
+            return jsonify(overview)
+        
         # Calculate additional metrics
         df = results['df']
         total_evaluations = len(df)
-        unique_users = df['User ID'].nunique()
+        unique_users = df['User ID'].nunique() if 'User ID' in df.columns else 0
         
         # Get video type distribution
         video_type_counts = {}
-        for _, row in df.iterrows():
-            reality = row['Reality']
-            video_type_counts[reality] = video_type_counts.get(reality, 0) + 1
+        if 'Reality' in df.columns:
+            for _, row in df.iterrows():
+                reality = row['Reality']
+                video_type_counts[reality] = video_type_counts.get(reality, 0) + 1
+        
+        # Handle accuracy_by_type safely
+        accuracy_by_type = results.get('accuracy_by_type', {})
+        safe_accuracy_by_type = {}
+        for k, v in accuracy_by_type.items():
+            safe_accuracy_by_type[k] = float(v) if not pd.isna(v) else 0.0
+        
+        # Handle overall accuracy safely
+        overall_accuracy = results.get('overall_accuracy', 0.0)
+        safe_overall_accuracy = float(overall_accuracy) if not pd.isna(overall_accuracy) else 0.0
         
         overview = {
-            'total_evaluations': total_evaluations,
-            'unique_users': unique_users,
-            'overall_accuracy': float(results['overall_accuracy']),
+            'total_evaluations': int(total_evaluations),
+            'unique_users': int(unique_users),
+            'overall_accuracy': safe_overall_accuracy,
             'video_type_distribution': video_type_counts,
-            'accuracy_by_type': {k: float(v) for k, v in results['accuracy_by_type'].items()}
+            'accuracy_by_type': safe_accuracy_by_type
         }
         
         return jsonify(overview)
     
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/stats/confusion_matrix')
-def confusion_matrix():
-    """Get confusion matrix data."""
-    try:
-        from flask import request
-        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
-        
-        results = get_cached_data(force_refresh=force_refresh)
-        
-        # Convert confusion matrix to JSON-serializable format
-        cm = results['confusion_matrix']
-        confusion_data = {
-            'matrix': cm.values.tolist(),
-            'labels': cm.index.tolist(),
-            'columns': cm.columns.tolist()
+        print(f"Error in stats_overview endpoint: {e}")
+        import traceback
+        traceback.print_exc()
+        # Return empty data structure instead of error
+        overview = {
+            'total_evaluations': 0,
+            'unique_users': 0,
+            'overall_accuracy': 0.0,
+            'video_type_distribution': {},
+            'accuracy_by_type': {}
         }
-        
-        return jsonify(confusion_data)
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify(overview)
 
 @app.route('/api/stats/user_accuracy')
+@app.route('/api/stats/user/accuracy')
 def user_accuracy():
     """Get user accuracy distribution data."""
     try:
@@ -353,16 +514,43 @@ def user_accuracy():
         
         results = get_cached_data(force_refresh=force_refresh)
         
+        # Handle case where accuracy_by_user might be empty or have issues
+        accuracy_by_user = results['accuracy_by_user']
+        
+        # Convert pandas Series to list safely
+        if hasattr(accuracy_by_user, 'tolist'):
+            user_accuracies = accuracy_by_user.tolist()
+        else:
+            user_accuracies = list(accuracy_by_user) if accuracy_by_user else []
+        
+        # Handle potential NaN values
+        user_accuracies = [float(x) if not pd.isna(x) else 0.0 for x in user_accuracies]
+        
+        # Calculate mean and std safely
+        if len(user_accuracies) > 0:
+            mean_accuracy = sum(user_accuracies) / len(user_accuracies)
+            if len(user_accuracies) > 1:
+                variance = sum((x - mean_accuracy) ** 2 for x in user_accuracies) / len(user_accuracies)
+                std_accuracy = variance ** 0.5
+            else:
+                std_accuracy = 0.0
+        else:
+            mean_accuracy = 0.0
+            std_accuracy = 0.0
+        
         accuracy_data = {
-            'user_accuracies': results['accuracy_by_user'].tolist(),
-            'overall_accuracy': float(results['overall_accuracy']),
-            'mean_accuracy': float(results['accuracy_by_user'].mean()),
-            'std_accuracy': float(results['accuracy_by_user'].std())
+            'user_accuracies': user_accuracies,
+            'overall_accuracy': float(results['overall_accuracy']) if not pd.isna(results['overall_accuracy']) else 0.0,
+            'mean_accuracy': float(mean_accuracy),
+            'std_accuracy': float(std_accuracy)
         }
         
         return jsonify(accuracy_data)
     
     except Exception as e:
+        print(f"Error in user_accuracy endpoint: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/stats/user/<user_id>')
