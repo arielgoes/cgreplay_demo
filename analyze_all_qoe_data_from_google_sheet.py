@@ -122,6 +122,14 @@ def analyze_data(df):
     Returns:
         dict: Analysis results
     """
+    # Check if DataFrame is empty
+    if df.empty:
+        raise ValueError("DataFrame is empty")
+    
+    # Print debug info
+    print(f"DataFrame shape: {df.shape}")
+    print(f"DataFrame columns: {list(df.columns)}")
+    
     # Ensure column names match the expected format
     expected_columns = [
         'Timestamp', 'User ID', 'Scene', 
@@ -134,20 +142,50 @@ def analyze_data(df):
     column_mapping = {}
     for expected in expected_columns:
         expected_lower = expected.lower()
+        found = False
         for col in df.columns:
-            if expected_lower in col.lower():
+            if expected_lower in col.lower() or col.lower() in expected_lower:
                 column_mapping[expected] = col
+                found = True
                 break
+        if not found:
+            print(f"Warning: Could not find column matching '{expected}'")
     
-    # Rename columns for consistency
-    df_renamed = df.rename(columns=column_mapping)
+    # Check if we have the minimum required columns
+    required_columns = ['User ID', 'Video A Filename', 'Video B Filename', 'Which Video Real']
+    missing_required = []
+    for req_col in required_columns:
+        if req_col not in column_mapping:
+            missing_required.append(req_col)
+    
+    if missing_required:
+        raise ValueError(f"Missing required columns: {missing_required}")
+    
+    # Create a copy of the dataframe with renamed columns
+    df_work = df.copy()
+    
+    # Only rename columns that we found
+    for expected, actual in column_mapping.items():
+        if actual in df_work.columns:
+            df_work = df_work.rename(columns={actual: expected})
+    
+    # Ensure we have the required columns after renaming
+    for req_col in required_columns:
+        if req_col not in df_work.columns:
+            raise ValueError(f"Required column '{req_col}' not found after column mapping")
+    
+    # Clean the data - remove rows with NaN in critical columns
+    df_work = df_work.dropna(subset=required_columns)
+    
+    if df_work.empty:
+        raise ValueError("No valid data rows after cleaning")
     
     # Determine which videos are synthetic
-    df_renamed['Video A Is Synthetic'] = df_renamed['Video A Filename'].apply(is_synthetic)
-    df_renamed['Video B Is Synthetic'] = df_renamed['Video B Filename'].apply(is_synthetic)
+    df_work['Video A Is Synthetic'] = df_work['Video A Filename'].apply(is_synthetic)
+    df_work['Video B Is Synthetic'] = df_work['Video B Filename'].apply(is_synthetic)
     
     # Determine user's guess
-    df_renamed['User Guess'] = df_renamed['Which Video Real'].apply(
+    df_work['User Guess'] = df_work['Which Video Real'].apply(
         lambda x: {
             'a': 'Video A is Real',
             'b': 'Video B is Real',
@@ -170,48 +208,59 @@ def analyze_data(df):
         else:  # a_synthetic and not b_synthetic
             return 'Video B is Real'
     
-    df_renamed['Reality'] = df_renamed.apply(determine_reality, axis=1)
+    df_work['Reality'] = df_work.apply(determine_reality, axis=1)
     
     # Determine if the user's guess was correct
-    df_renamed['Correct Guess'] = df_renamed.apply(
+    df_work['Correct Guess'] = df_work.apply(
         lambda row: row['User Guess'] == row['Reality'], axis=1
     )
     
     # Calculate overall accuracy
-    overall_accuracy = df_renamed['Correct Guess'].mean()
+    overall_accuracy = df_work['Correct Guess'].mean()
     
     # Calculate accuracy by video type
     accuracy_by_type = {}
-    for reality in df_renamed['Reality'].unique():
-        subset = df_renamed[df_renamed['Reality'] == reality]
+    for reality in df_work['Reality'].unique():
+        subset = df_work[df_work['Reality'] == reality]
         if len(subset) > 0:
             accuracy = subset['Correct Guess'].mean()
             accuracy_by_type[reality] = accuracy
     
     # Calculate accuracy by user
-    accuracy_by_user = df_renamed.groupby('User ID')['Correct Guess'].mean()
+    accuracy_by_user = df_work.groupby('User ID')['Correct Guess'].mean()
     
     # Calculate confusion matrix
     reality_categories = ['Video A is Real', 'Video B is Real', 'Both are Real', 'None are Real']
-    confusion_matrix = pd.crosstab(
-        df_renamed['Reality'], 
-        df_renamed['User Guess'],
-        normalize='index'
-    )
     
-    # Ensure all categories are present in the confusion matrix
-    for category in reality_categories:
-        if category not in confusion_matrix.index:
-            confusion_matrix.loc[category] = 0
-        if category not in confusion_matrix.columns:
-            confusion_matrix[category] = 0
-    
-    # Reorder rows and columns
-    confusion_matrix = confusion_matrix.reindex(reality_categories, axis=0)
-    confusion_matrix = confusion_matrix.reindex(reality_categories, axis=1)
+    # Create confusion matrix with proper handling of missing categories
+    try:
+        confusion_matrix = pd.crosstab(
+            df_work['Reality'], 
+            df_work['User Guess'],
+            normalize='index'
+        )
+        
+        # Ensure all categories are present in the confusion matrix
+        for category in reality_categories:
+            if category not in confusion_matrix.index:
+                confusion_matrix.loc[category] = 0
+            if category not in confusion_matrix.columns:
+                confusion_matrix[category] = 0
+        
+        # Reorder rows and columns
+        confusion_matrix = confusion_matrix.reindex(reality_categories, axis=0, fill_value=0)
+        confusion_matrix = confusion_matrix.reindex(reality_categories, axis=1, fill_value=0)
+    except Exception as e:
+        print(f"Warning: Could not create confusion matrix: {e}")
+        # Create empty confusion matrix as fallback
+        confusion_matrix = pd.DataFrame(
+            0, 
+            index=reality_categories, 
+            columns=reality_categories
+        )
     
     return {
-        'df': df_renamed,
+        'df': df_work,
         'overall_accuracy': overall_accuracy,
         'accuracy_by_type': accuracy_by_type,
         'accuracy_by_user': accuracy_by_user,
