@@ -62,7 +62,7 @@ The Qoe Evaluation website is a web-based tool for conducting video quality eval
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/cgreplay_demo.git
+   git clone https://github.com/arielgoes/cgreplay_demo.git
    cd cgreplay_demo
    ```
 
